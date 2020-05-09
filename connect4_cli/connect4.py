@@ -1,3 +1,5 @@
+import numpy as np
+
 EMPTY_CELL = "_"
 COIN_RED = "R"
 COIN_BLUE = "B"
@@ -11,6 +13,7 @@ class Game:
         self.p_blue = p_blue
         print("{0} gets first turn.".format(p_red))
         self.current_turn = p_red
+        self.current_coin = COIN_RED
         self.winner = ""
         self.state = "ONGOING"
         self.game_grid = Grid()
@@ -22,13 +25,19 @@ class Game:
 
     def play_turn(self):
         print("\n{}'s turn".format(self.current_turn))
-        col = int(input("Enter a column (1-{}): ".format(self.w)))
-        if self.current_turn == self.p_blue:
-            i, j = self.game_grid.put_coin(col-1, COIN_BLUE)
-        else:
-            i, j = self.game_grid.put_coin(col-1, COIN_RED)
+        retry = True
+        while retry:
+            try:
+                retry = False
+                col = int(input("Enter a column (1-{}): ".format(self.w)))
+                if not 1 <= col <= 7:
+                    raise Exception
+            except Exception:
+                print("You entered an invalid input! Please re-enter!")
+                retry = True
+        i, j = self.game_grid.put_coin(col-1, self.current_coin)
         self.game_grid.print_grid()
-        victory = self.game_grid.check_victory(i, j)
+        victory = self.game_grid.check_victory(i, j, self.current_coin)
         if victory:
             self.state = "COMPLETED"
             self.winner = self.current_turn
@@ -39,8 +48,10 @@ class Game:
     def rotate_turn(self):
         if self.current_turn == self.p_blue:
             self.current_turn = self.p_red
+            self.current_coin = COIN_RED
         else:
             self.current_turn = self.p_blue
+            self.current_coin = COIN_BLUE
 
 class Grid:
     def __init__(self):
@@ -68,76 +79,27 @@ class Grid:
         empty_row = find_empty_row()
         if empty_row > -1:
             self.grid[empty_row][col_num] = coin_type
-            print(empty_row, col_num)
             return empty_row, col_num
         else:
             return False
 
-    def check_victory(self, x, y):
-        def check_horizontal(i, j, dir):
-            if j + 1 + dir * 4 > self.w or j + 1 + dir * 4 < 0:
-                return False
-            else:
-                val = self.grid[i][j]
-                if val == EMPTY_CELL:
-                    return False
-                val_1 = self.grid[i][j + dir * 1]
-                if val_1 == val:
-                    val_2 = self.grid[i][j + dir * 2]
-                    if val_2 == val_1:
-                        val_3 = self.grid[i][j + dir * 3]
-                        if val_3 == val_2:
-                            return True
-
-        def check_vertical(i, j, dir):
-            if i + dir * 4 > self.h or i + dir * 4 < 0:
-                return False
-            else:
-                val = self.grid[i][j]
-                if val == EMPTY_CELL:
-                    return False
-                val_1 = self.grid[i + dir * 1][j]
-                if val_1 == val:
-                    val_2 = self.grid[i + dir * 2][j]
-                    if val_2 == val_1:
-                        val_3 = self.grid[i + dir * 3][j]
-                        if val_3 == val_2:
-                            return True
-
-        def check_diag(i, j, dir):
-            if i - dir * 4 < 0 or i - dir * 4 > self.h or j + 1 + dir * 4 > self.w or j + 1 + dir * 4 < 0:
-                return False
-            else:
-                val = self.grid[i][j]
-                if val == EMPTY_CELL:
-                    return False
-                val_1 = self.grid[i - dir * 1][j + dir * 1]
-                if val_1 == val:
-                    val_2 = self.grid[i - dir * 2][j + dir * 2]
-                    if val_2 == val_1:
-                        val_3 = self.grid[i - dir * 3][j + dir * 3]
-                        if val_3 == val_2:
-                            return True
-
-        def check_right(i, j):
-            return check_horizontal(i, j, 1)
-
-        def check_left(i, j):
-            return check_horizontal(i, j, -1)
-
-        def check_bottom(i, j):
-            return check_vertical(i, j, 1)
-
-        if check_bottom(x, y):
-            return x, y, "Top"
-        if check_right(x, y):
-            return x, y, "Right"
-        if check_left(x, y):
-            return x, y, "Left"
-        if check_diag(x, y, 1):
-            return x, y, "DiagRight"
-        if check_diag(x, y, -1):
-            return x, y, "DiagLeft"
+    def check_victory(self, x, y, current_coin):
+        sub_seq_len = np.zeros((3, 3), dtype=np.uint)
+        for i in [-1, 0, 1]:
+            for j in [-1, 0, 1]:
+                if i == j == 0:
+                    continue
+                for step_size in range(1, 4):
+                    x_new = x + step_size * i
+                    y_new = y + step_size * j
+                    if x_new in range(0, GRID_HEIGHT) and y_new in range(0, GRID_WIDTH) \
+                            and self.grid[x_new][y_new] == current_coin:
+                        sub_seq_len[i][j] += 1
+                    else:
+                        break
+        if np.sum(sub_seq_len, axis=0)[1] == 3 or np.sum(sub_seq_len, axis=1)[1] == 3 \
+                or np.trace(sub_seq_len) == 3 or np.trace(np.fliplr(sub_seq_len)) == 3:
+            return True
         return False
 
 if __name__ == "__main__":
